@@ -370,7 +370,7 @@ class GameEngine:
         self.model = str(kwargs.get('model') or self._env['BAILIAN_MODEL']).strip()
         if not self.model:
             raise ValueError('model 不能为空')
-        self.timeout_s = float(kwargs.get('timeout_s', 30.0))
+        self.timeout_s = float(kwargs.get('timeout_s', 300.0))
         if self.timeout_s <= 0:
             raise ValueError('timeout_s 必须 > 0')
         self.max_attempts = int(kwargs.get('max_attempts', 2))
@@ -400,6 +400,7 @@ class GameEngine:
         self._san_history: list[str] = []
         self._move_records: list[dict[str, Any]] = []
         self._last_llm: dict[str, Any] | None = None
+        self._conversation: list[dict[str, Any]] = []
         self.setup()
 
     def _build_payload(self, messages: list[dict]) -> dict:
@@ -441,6 +442,7 @@ class GameEngine:
             self._san_history = []
             self._move_records = []
             self._last_llm = None
+            self._conversation = []
             return self.state()
 
     def human_move(self, uci: str) -> dict:
@@ -470,7 +472,8 @@ class GameEngine:
             if outcome is not None:
                 raise ValueError('cannot choose an engine move from a terminal position')
             started = time.perf_counter()
-            messages = build_messages(self._board, self._move_records, self.history_plies)
+            turn_messages = build_messages(self._board, self._move_records, self.history_plies)
+            self._conversation.extend(turn_messages)
             previous_raw: str = ''
             attempts = 0
             reason = ''
@@ -478,7 +481,7 @@ class GameEngine:
             for attempt in range(1, self.max_attempts + 1):
                 attempts = attempt
                 try:
-                    reply = self._chat_once(messages)
+                    reply = self._chat_once(self._conversation)
                 except LLMError as exc:
                     reason = str(exc)
                     continue
@@ -487,9 +490,10 @@ class GameEngine:
                 previous_raw = _truncate(content, 200)
                 move, reason = parse_engine_move(content, reasoning, self._board)
                 if move is not None:
+                    self._conversation.append({'role': 'assistant', 'content': content})
                     break
-                messages.append({'role': 'assistant', 'content': content})
-                messages.append({
+                self._conversation.append({'role': 'assistant', 'content': content})
+                self._conversation.append({
                     'role': 'user',
                     'content': _build_correction_message(self._board, previous_raw, reason),
                 })
@@ -562,6 +566,7 @@ class GameEngine:
                 if self._move_records:
                     self._move_records.pop()
             self._last_llm = None
+            self._conversation = []
             return self.state()
 
     def cleanup(self) -> None:
@@ -569,6 +574,7 @@ class GameEngine:
             self._san_history = []
             self._move_records = []
             self._last_llm = None
+            self._conversation = []
             return None
 
 
