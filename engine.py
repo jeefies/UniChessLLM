@@ -493,6 +493,7 @@ class GameEngine:
                 'white': white,
             })
             llm_meta: dict[str, Any] = {
+                'engine_move': move.uci(),
                 'model': self.model,
                 'attempts': attempts,
                 'raw': previous_raw,
