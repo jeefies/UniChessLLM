@@ -26,6 +26,17 @@ _ALLOWED_KWARGS = frozenset({
 })
 _MOVE_LINE_RE = re.compile(r'MOVE\s*[:：]\s*(\S+)', re.IGNORECASE)
 _UCI_TOKEN_RE = re.compile(r'\b([a-h][1-8][a-h][1-8][qrbn]?)\b')
+_DEBUG_LOG_PATH = os.environ.get('DS_DEBUG_LOG')
+
+
+def _debug_log(text: str) -> None:
+    if not _DEBUG_LOG_PATH:
+        return
+    try:
+        with open(_DEBUG_LOG_PATH, 'a', encoding='utf-8') as fh:
+            fh.write(f'[{time.strftime("%Y-%m-%d %H:%M:%S")}] {text}\n')
+    except Exception:
+        pass
 
 
 class LLMError(RuntimeError):
@@ -89,6 +100,9 @@ def _http_chat(base_url: str, api_key: str, payload: dict, timeout_s: float) -> 
             'Accept': 'application/json',
         },
     )
+    if _DEBUG_LOG_PATH:
+        safe_payload = json.dumps(payload, ensure_ascii=False)
+        _debug_log(f'REQUEST {url}\n  payload: {safe_payload[:1000]}')
     status = None
     raw = ''
     try:
@@ -108,6 +122,9 @@ def _http_chat(base_url: str, api_key: str, payload: dict, timeout_s: float) -> 
 
     if status is None:
         raise LLMError('百炼 HTTP 响应缺少状态码')
+
+    if _DEBUG_LOG_PATH:
+        _debug_log(f'RESPONSE status={status}\n  body: {raw[:2000]}')
 
     try:
         data = json.loads(raw)
@@ -140,6 +157,8 @@ def _http_chat(base_url: str, api_key: str, payload: dict, timeout_s: float) -> 
     if not isinstance(reasoning, str):
         reasoning = str(reasoning)
     if not content.strip() and not reasoning.strip():
+        if _DEBUG_LOG_PATH:
+            _debug_log(f'EMPTY_RESPONSE status={status} content={content!r} reasoning={reasoning!r}')
         raise LLMError('百炼响应 content 与 reasoning_content 均为空', status=status)
 
     return {'content': content, 'reasoning_content': reasoning}
