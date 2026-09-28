@@ -3,10 +3,10 @@
     "timeout_s": 30,
     "max_attempts": 2,
     "temperature": 0.2,
-    "max_tokens": 512,
+    "max_tokens": 10240,
     "history_plies": 24,
     "thinking": true,
-    "description": "标准档：thinking 开、单次 30s 超时、最多 2 次尝试；失败直接报错。"
+    "description": "标准档：thinking 开、单次 30s 超时、最多 2 次尝试；max_tokens 10k 避免 reasoning 被截断。失败直接报错。"
   },
   "fast": {
     "timeout_s": 10,
